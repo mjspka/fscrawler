@@ -58,14 +58,18 @@ public class FileAbstractorFile extends FileAbstractor<File> {
         if (logger.isDebugEnabled()) logger.debug("Listing local files from {}", dir);
         File[] files = new File(dir).listFiles();
 
-        Collection<FileAbstractModel> result = new ArrayList<>(files.length);
+        Collection<FileAbstractModel> result = null;
+        if (files != null) {
+        	result = new ArrayList<>(files.length);
 
-        // Iterate other files
-        for (File file : files) {
-            result.add(toFileAbstractModel(dir, file));
+            // Iterate other files
+            for (File file : files) {
+                result.add(toFileAbstractModel(dir, file));
+            }
+
+            if (logger.isDebugEnabled()) logger.debug("{} local files found", result.size());
         }
-
-        if (logger.isDebugEnabled()) logger.debug("{} local files found", result.size());
+        
         return result;
     }
 

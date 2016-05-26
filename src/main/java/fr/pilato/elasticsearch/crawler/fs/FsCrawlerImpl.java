@@ -19,7 +19,33 @@
 
 package fr.pilato.elasticsearch.crawler.fs;
 
-import fr.pilato.elasticsearch.crawler.fs.client.*;
+import static fr.pilato.elasticsearch.crawler.fs.TikaInstance.tika;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.tika.metadata.Metadata;
+
+import fr.pilato.elasticsearch.crawler.fs.client.BulkProcessor;
+import fr.pilato.elasticsearch.crawler.fs.client.DeleteRequest;
+import fr.pilato.elasticsearch.crawler.fs.client.ElasticsearchClient;
+import fr.pilato.elasticsearch.crawler.fs.client.IndexRequest;
+import fr.pilato.elasticsearch.crawler.fs.client.SearchResponse;
 import fr.pilato.elasticsearch.crawler.fs.fileabstractor.FileAbstractModel;
 import fr.pilato.elasticsearch.crawler.fs.fileabstractor.FileAbstractor;
 import fr.pilato.elasticsearch.crawler.fs.fileabstractor.FileAbstractorFile;
@@ -34,18 +60,6 @@ import fr.pilato.elasticsearch.crawler.fs.meta.settings.Fs;
 import fr.pilato.elasticsearch.crawler.fs.meta.settings.FsSettings;
 import fr.pilato.elasticsearch.crawler.fs.meta.settings.FsSettingsFileHandler;
 import fr.pilato.elasticsearch.crawler.fs.util.FsCrawlerUtil;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.tika.metadata.Metadata;
-
-import java.io.*;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
-
-import static fr.pilato.elasticsearch.crawler.fs.TikaInstance.tika;
 
 /**
  * @author dadoonet (David Pilato)
@@ -301,8 +315,9 @@ public class FsCrawlerImpl {
                         String filename = child.name;
 
                         // https://github.com/dadoonet/fscrawler/issues/1 : Filter documents
-                        boolean isIndexable = FsCrawlerUtil.isIndexable(filename, fsSettings.getFs().getIncludes(), fsSettings.getFs().getExcludes());
+                        boolean isIndexable = FsCrawlerUtil.isIndexable(filename, fsSettings.getFs().getIncludes(), fsSettings.getFs().getExcludes());                        
                         logger.debug("[{}] can be indexed: [{}]", filename, isIndexable);
+                        
                         if (isIndexable) {
                             if (child.file) {
                                 logger.debug("  - file: {}", filename);
@@ -310,7 +325,16 @@ public class FsCrawlerImpl {
                                 if (lastScanDate == null
                                         || child.lastModifiedDate.isAfter(lastScanDate)
                                         || (child.creationDate != null && child.creationDate.isAfter(lastScanDate))) {
-                                    indexFile(stats, child.name, filepath, path.getInputStream(child), child.lastModifiedDate, child.size);
+                                	
+                                	InputStream stream = null;
+                                    if (child.size > 1024) {
+                                    	logger.debug("{} is of size {} and thus the content won't be indexed", filename, child.size);                        	
+                                    	stream = new ByteArrayInputStream("File is too big to index".getBytes(StandardCharsets.UTF_8));
+                                    } else {
+                                    	stream = path.getInputStream(child);
+                                    }
+                                	
+                                    indexFile(stats, child.name, filepath, stream, child.lastModifiedDate, child.size);
                                     stats.addFile();
                                 } else {
                                     logger.debug("    - not modified: creation date {} , file date {}, last scan date {}",

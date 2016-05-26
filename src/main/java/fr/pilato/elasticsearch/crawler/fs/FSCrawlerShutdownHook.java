@@ -22,7 +22,7 @@ package fr.pilato.elasticsearch.crawler.fs;
 /**
  * Shutdown hook so we make sure we close everything
  */
-public class FSCrawlerShutdownHook extends Thread implements Runnable {
+public class FSCrawlerShutdownHook extends Thread {
 
     private final FsCrawlerImpl fsCrawler;
 
